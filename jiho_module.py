@@ -1,6 +1,8 @@
-from pyspark.sql.functions import to_date, substring, concat_ws
+from pyspark.sql.functions import to_date, substring, concat_ws, lag, when, datediff
 from pyspark.sql import DataFrame
+from pyspark.sql.window import Window
 import pandas as pd
+import seaborn as sns
 from functools import reduce
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 
@@ -22,6 +24,18 @@ def int_to_date(transaction_df, col_name):
                                 transaction_df[col_name], 
                                 'yyyy-MM-dd'))
                     )
+    
+    return transaction_df
+
+def add_subscribe_period(transaction_df):
+    transaction_df = (transaction_df
+                      .withColumn('prev_expire_date', lag('membership_expire_date')
+                                                      .over(Window.partitionBy('msno_num').orderBy('transaction_date','membership_expire_date')))
+                      )
+    
+    transaction_df = transaction_df.withColumn('periods', when(transaction_df.is_cancel == 0, datediff(transaction_df['membership_expire_date'], transaction_df['transaction_date']))
+                                             .otherwise(datediff(transaction_df['membership_expire_date'], transaction_df['prev_expire_date']))
+                                             )
     
     return transaction_df
 
@@ -58,3 +72,6 @@ def print_grid_result(model, X_test, y_test):
    print("recall:", recall_score(y_test, pred_test2))
    print("f1 score:", f1_score(y_test, pred_test2))
    print(confusion_matrix(y_test, pred_test2))
+
+def compare_density(df, col_name, ax=None):
+    sns.kdeplot(df, x=col_name, hue='is_churn', common_norm=False, ax=ax)
