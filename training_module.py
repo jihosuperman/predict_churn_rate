@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 import datetime
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 
 # 각 데이터 불러올 때 컬러명 변경 절대 금지!
 
@@ -9,48 +11,50 @@ class TrainingModule():
     def __init__(self):
         self.train = None
         self.members = None
-        self.transcation = None
+        self.transaction = None
         self.userlog = None
-
-    def import_data(self, train_path=None, memeber_path=None, transaction_path=None, userlog_path=None):
-        try:   
+        self.X_train = None
+        self.X_test = None
+        self.y_train = None
+        self.y_test = None
+        
+    def importData(self, train_path=None, member_path=None, transaction_path=None, userlog_path=None):  
             ##### Train data 불러오기 #####
             if train_path == None:
                 self.train == None
             else:
                 self.train = pd.read_parquet(train_path)
-                self.train.date = pd.to_datetime(self.train.date, format='%Y-%m-%d')
 
             ##### Members data 불러오기 #####
-            if memeber_path == None:
+            if member_path == None:
                 self.members == None
             else:
-                self.members = pd.read_parquet(memeber_path)
+                self.members = pd.read_parquet(member_path)
                 self.members.gender.fillna('donknow')     ######## 젠더 Null 값 donknow 추가 ############ 수정
                 self.members.registration_init_time = pd.to_datetime(self.members.registration_init_time, format='%Y-%m-%d')
-
                 
             ##### Transaction data 불러오기 & 필터링 #####
             if transaction_path == None:
                 self.transaction == None
             else:
                 self.transaction = pd.read_parquet(transaction_path)
-                self.transaction.date = pd.to_datetime(self.transaction.date, format='%Y-%m-%d')
+                self.transaction.transaction_date = pd.to_datetime(self.transaction.transaction_date, format='%Y-%m-%d')
+                self.transaction.membership_expire_date = pd.to_datetime(self.transaction.membership_expire_date, format='%Y-%m-%d')
                 # 아이디와 거래일의 중복값 중 첫번째 & 구독 취소 유저가 아닌 경우를 제거
-                transaction_filter1 = (~((self.transcation.duplicated(['msno_num', 'transaction_date'], keep='first')) & (self.transcation['is_cancel'] == 0)))
+                transaction_filter1 = (~((self.transaction.duplicated(['msno_num', 'transaction_date'], keep='first')) & (self.transaction['is_cancel'] == 0)))
 
                 # 위에서 필터링되지 않은 같은 구독 취소 거래가 중복된 값 제거
-                cols = list(self.transcation.columns)[1:9]
+                cols = list(self.transaction.columns)[1:9]
                 cols.remove('membership_expire_date')
-                transaction_filter2 = (~((self.transcation.duplicated(cols, keep='first')) & (self.transcation['is_cancel'] == 1)))
+                transaction_filter2 = (~((self.transaction.duplicated(cols, keep='first')) & (self.transaction['is_cancel'] == 1)))
 
                 # 멤버쉽 만료일 > 거래일 인 경우만 남김
-                transaction_filter3 = (self.transcation['transaction_date'] < self.transcation['membership_expire_date'])
+                transaction_filter3 = (self.transaction['transaction_date'] < self.transaction['membership_expire_date'])
 
                 min_timestamp = pd.Timestamp(datetime.date(2005,1,1))
                 max_timestamp = pd.Timestamp(datetime.date(2018,4,30))
 
-                transaction_filter4 = ((self.transcation['membership_expire_date'] >= min_timestamp) & (self.transcation['membership_expire_date'] <= max_timestamp))
+                transaction_filter4 = ((self.transaction['membership_expire_date'] >= min_timestamp) & (self.transaction['membership_expire_date'] <= max_timestamp))
 
                 self.transaction = self.transaction[transaction_filter1&transaction_filter2&transaction_filter3&transaction_filter4]
 
@@ -60,10 +64,8 @@ class TrainingModule():
             else:
                 self.userlog = pd.read_parquet(userlog_path)
                 self.userlog.date = pd.to_datetime(self.userlog.date, format='%Y-%m-%d')
-        except:
-            print('Something Wrong with import_data() method')
 
-    def userlog_filtering(self, use=0):
+    def userlogFiltering(self, use=0):
         try:
             if use==0:
                 filter1 = (
@@ -179,12 +181,16 @@ class TrainingModule():
                 self.transaction['discount_record'] = self.transaction['plan_list_price'] - self.transaction['actual_amount_paid']
                 df = self.transaction.groupby('msno_num')[['discount_record']].sum()
                 df['discount_record'] = np.where(df['discount_record'] > 0, 1, 0)
-                self.members = self.members.merge(self.transaction[['msno_num', 'discount_record']], on='msno_num', how='inner')
+                self.members = self.members.merge(df[['msno_num', 'discount_record']], on='msno_num', how='inner')
 
                 return self.members
         except:
             print('Something is wrong with dicountRecord()')
     
+    def initRegist(self,use):
+        pass
+
+
     def delayTran(self, use): ## 가입 후 첫 거래일 까지 걸린 시간
         try:
             if int(use) == 0:
@@ -285,12 +291,19 @@ class TrainingModule():
         except:
             print("Someting is Wrong with userLogGroup()")
 
+    def datasplit(self, prob):
+        X = self.members.drop(columns=['msno_num', 'is_churn'])
+        y = self.members['is_churn']
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=prob)
+
+        return self.X_train, self.X_test, self.y_train, self.y_test
+
+    def encoding(self):
+        le =LabelEncoder()
+        self.members = self.members.merge(self.train, on='msno_num', how='inner')
+        
+
+        return self.members
+        
 
 
-    def preProcessing(self):
-        self.train  
-        self.members = None
-        self.transcation = None
-        self.transcation_grouped = None
-        self.userlog = None
-        self.userlog_grouped = None
