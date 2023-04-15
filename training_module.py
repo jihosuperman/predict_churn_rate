@@ -91,6 +91,10 @@ class TrainingModule():
 
     def gender(self): # 그대로 사용 # 젠더 드랍  ############### 완료
         gender_original =self.members[['msno_num','gender']].copy()
+        gender_label = {'male':1, 'female':2, 'donknow':0}
+
+        gender_original['gender'] = gender_original['gender'].replace(gender_label)
+
         gender_drop = self.members[['msno_num']].copy()
         
         gender_result = [gender_original, gender_drop]
@@ -123,17 +127,19 @@ class TrainingModule():
         for idx, item in enumerate(age_list):
             #print(f'type(item) : {type(item)}')
             bins = [15, 26, 36, 46, 56, 64]
-            labels = ['0','1','2','3','4']
+            labels = [0,1,2,3,4]
             age_df = item.copy()
             age_df['bd'] = pd.cut(age_df['bd'], bins=bins, labels=labels)
             age_df['bd'] = age_df['bd'].cat.add_categories([5]).fillna(5)
+            age_df['bd'] = age_df['bd'].astype(int)
             age_category_result.append(age_df)
 
             age_df1 = item.copy()
             bins = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 64]
-            labels = ['0','1','2','3','4','5','6','7','8','9']
+            labels = [0,1,2,3,4,5,6,7,8,9]
             age_df1['bd'] = pd.cut(age_df1['bd'], bins=bins, labels=labels)
             age_df1['bd'] = age_df1['bd'].cat.add_categories([10]).fillna(10)
+            age_df['bd'] = age_df['bd'].astype(int)
             age_category_result.append(age_df1)
 
             age_df2 = item.copy()
