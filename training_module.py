@@ -139,7 +139,7 @@ class TrainingModule():
             labels = [0,1,2,3,4,5,6,7,8,9]
             age_df1['bd'] = pd.cut(age_df1['bd'], bins=bins, labels=labels)
             age_df1['bd'] = age_df1['bd'].cat.add_categories([10]).fillna(10)
-            age_df['bd'] = age_df['bd'].astype(int)
+            age_df1['bd'] = age_df1['bd'].astype(int)
             age_category_result.append(age_df1)
 
             age_df2 = item.copy()
@@ -209,8 +209,9 @@ class TrainingModule():
        
         category_delay = continue_delay.copy()
         bins = [-2, 0, 11, 99]
-        labels = ['0', '1-11', '12+']
+        labels = [0, 1, 2]
         category_delay['reg_first_subs'] = pd.cut(category_delay['reg_first_subs'], bins=bins, labels=labels)
+        category_delay['reg_first_subs'] = category_delay['reg_first_subs'].astype(int)
 
         delay_transaction = [continue_delay, category_delay]
         
