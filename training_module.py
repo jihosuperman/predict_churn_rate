@@ -75,7 +75,7 @@ class TrainingModule():
 
             def remove_quantile(df):
                 for col in ['num_25', 'num_50', 'num_75', 'num_985', 'num_100', 'num_unq']:
-                    df2 = df[df[col] > 0]
+                    df2 = df[df[col] >= 0]
                     level_1q = df2[col].quantile(0.25)
                     level_3q = df2[col].quantile(0.75)
                     IQR = level_3q - level_1q
@@ -171,6 +171,11 @@ class TrainingModule():
         return auto_renew_result
 
 
+    def paymentChange(self):
+        result_df = self.transaction.groupby('msno_num')[['payment_method_id']].nunique().reset_index()
+        result_df['change'] = result_df['payment_method_id'].apply(lambda x: 1 if x>1 else 0)
+        return result_df[['msno_num','change']]
+    
     def paymentMethodId(self): # 지불방식 ################### 완료
         paymentMethod = self.transaction[['msno_num','payment_method_id']].groupby('msno_num')['payment_method_id'].apply(lambda x: x.value_counts().index[0]).to_frame().reset_index()
         
@@ -204,16 +209,10 @@ class TrainingModule():
         df2 = pd.merge(df1, self.members[['msno_num', 'registration_init_time']], on='msno_num')
         df2.rename(columns={'transaction_date': 'first_transaction_date'}, inplace=True)
 
-        df2['reg_first_subs'] = round(((df2['first_transaction_date'] - df2['registration_init_time']).dt.days/360), 0)
+        df2['reg_first_subs'] = abs(round(((df2['first_transaction_date'] - df2['registration_init_time']).dt.days/30), 0))
         continue_delay = df2[['msno_num', 'reg_first_subs']]
-       
-        category_delay = continue_delay.copy()
-        bins = [-2, 0, 11, 99]
-        labels = [0, 1, 2]
-        category_delay['reg_first_subs'] = pd.cut(category_delay['reg_first_subs'], bins=bins, labels=labels)
-        category_delay['reg_first_subs'] = category_delay['reg_first_subs'].astype(int)
 
-        delay_transaction = [continue_delay, category_delay]
+        delay_transaction = continue_delay
         
         return delay_transaction
 
@@ -221,11 +220,11 @@ class TrainingModule():
        
         membership_duration = self.transaction[['msno_num','transaction_date','membership_expire_date']]
         membership_duration['year_month'] =  membership_duration['transaction_date'].dt.to_period('M')
-        membership_duration = membership_duration.drop_duplicates(subset=['msno_num', 'year_month'], keep='last')
-        membership_duration = membership_duration['msno_num'].value_counts().reset_index()
-        membership_duration.columns = ['msno_num', 'duration']
+        membership_duration['year_month2'] =  membership_duration['membership_expire_date'].dt.to_period('M')
+        membership_duration = membership_duration.groupby('msno_num').agg({'transaction_date':'min', 'membership_expire_date':'max'}).reset_index()
+        membership_duration['duration'] = ((membership_duration['membership_expire_date'] - membership_duration['transaction_date']).dt.days/30).astype(int)
     
-        return  membership_duration
+        return  membership_duration[['msno_num', 'duration']]
         
     def isCancel(self): # 구독취소여부 ################################## 완료
         is_cancel = self.transaction.groupby('msno_num').agg({'is_cancel':'sum'}).reset_index()
@@ -294,7 +293,7 @@ class TrainingModule():
         df[new_col] = total.div(df['num_unq'], axis=0)
         df = df.reset_index()
 
-        user_log_group = df[['msno_num','total_secs', 'per_25', 'per_25_75', 'per_100', 'total_plays_per_unique']].copy()
+        user_log_group = df[['msno_num', 'log_count','total_secs', 'per_25', 'per_25_75', 'per_100', 'total_plays_per_unique']].copy()
         
         return user_log_group
         
