@@ -14,6 +14,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 from imblearn.over_sampling import SMOTE
+from sklearn.feature_selection import f_classif, chi2,SelectKBest
 
 class ModelingModule():
 
@@ -32,6 +33,8 @@ class ModelingModule():
         self.recall_test = None
         self.precision_test = None
         self.confusion_matrix_test = None
+        self.X = None
+        self.y = None
 
     def getDataFrame(self, df):
         self.df = df
@@ -40,12 +43,16 @@ class ModelingModule():
         X = self.df.drop(columns=['msno_num','is_churn'])
         y = self.df[['is_churn']]
 
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=0.2, random_state=13, stratify=y)
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=0.2, random_state=13, stratify=self.y)
         print("Split Complete")
+
+    def selectBest(self, num=None):
+        selector = SelectKBest(score_func = chi2, k = num)
+        self.X_train = selector.fit_transform(self.X_train, self.y_train)
+        self.X_test = selector.transform(self.X_test)
 
     def overSampling(self):
         sm = SMOTE(random_state=13)
-        self.X_train , self.y_train = sm.fit_resample(self.X_train, self.y_train)
         self.X_train , self.y_train = sm.fit_resample(self.X_train, self.y_train)
 
     def minMaxScaling(self):
@@ -70,9 +77,9 @@ class ModelingModule():
         self.model_name = 'DecisionTree'
 
     #랜덤포레스트
-    def modelRandomForest(self):
+    def modelRandomForest(self, max_depth=None):
         
-        out_ran = RandomForestClassifier()
+        out_ran = RandomForestClassifier(max_depth=max_depth)
         self.model = out_ran.fit(self.X_train, self.y_train)
         self.model_name = 'RandomForest'
 
